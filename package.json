@@ -4,7 +4,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "wrangler dev src/index.ts"
+    "dev": "wrangler dev src/index.ts",
+    "start:node": "tsx src/server.node.ts"
   },
   "dependencies": {
     "@solana/kit": "2.1.1",
@@ -16,7 +17,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
+    "@hono/node-server": "^1.19.4",
     "@types/bun": "1.2.15",
+    "tsx": "^4.20.6",
     "typescript": "5.8.3",
     "wrangler": "4.19.1"
   }

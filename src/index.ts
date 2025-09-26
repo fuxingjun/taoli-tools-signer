@@ -64,9 +64,19 @@ app.use('/:key/*', async (c, next) => {
         : undefined
   const info = getConnInfo?.(c)
   const ips = typeof key.ip === 'string' ? [key.ip] : (key.ip ?? [])
+
+  // generic remote address fallback for Node or unknown runtimes
+  const forwarded = c.req.header('x-forwarded-for')
+  const realIP = c.req.header('x-real-ip')
+  const firstForwarded = forwarded?.split(',')[0]?.trim()
+  const remoteAddr = (info?.remote.address)
+    ?? firstForwarded
+    ?? realIP
+    ?? ''
+
   if (
     ips.length > 0 &&
-    (!info || !ips.find((ip) => ip === info.remote.address))
+    !ips.find((ip) => ip === remoteAddr)
   ) {
     return c.text('TTS: Restricted IP', 403)
   }
@@ -110,24 +120,24 @@ app.post('/:key/:platform', async (c) => {
 async function getKeyChain(
   c: Context<{ Bindings: Bindings }, '/', BlankInput>,
 ) {
-  return keychainSchema.parse(
-    parse(
-      runtimeKey === 'workerd'
-        ? c.env.KEYCHAIN
-        : runtimeKey === 'bun' && typeof Bun !== 'undefined'
-          ? await Bun.file('/run/secrets/KEYCHAIN').text()
-          : '',
-    ),
-  )
+  const content =
+    runtimeKey === 'workerd'
+      ? c.env.KEYCHAIN
+      : runtimeKey === 'bun' && typeof Bun !== 'undefined'
+        ? await Bun.file('keychain.toml').text()
+        : runtimeKey === 'node'
+          ? (process.env.KEYCHAIN ?? await (await import('node:fs/promises')).readFile('keychain.toml', 'utf8').catch(() => ''))
+          : ''
+  return keychainSchema.parse(parse(content))
 }
 
 export default runtimeKey === 'bun' && typeof Bun !== 'undefined'
   ? {
-      port: 443,
+      port: 12250,
       fetch: app.fetch,
-      tls: {
-        cert: Bun.file('/run/secrets/CERT.pem'),
-        key: Bun.file('/run/secrets/KEY.pem'),
-      },
+      // tls: {
+      //   cert: Bun.file('/run/secrets/CERT.pem'),
+      //   key: Bun.file('/run/secrets/KEY.pem'),
+      // },
     }
   : app
