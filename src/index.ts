@@ -2,6 +2,7 @@ import { type Context, Hono } from 'hono'
 import { getRuntimeKey } from 'hono/adapter'
 import { getConnInfo as getWorkerdConnInfo } from 'hono/cloudflare-workers'
 import { cors } from 'hono/cors'
+import { logger } from 'hono/logger'
 import type { BlankInput } from 'hono/types'
 import { parse } from 'smol-toml'
 import type { z } from 'zod/v4'
@@ -25,6 +26,8 @@ declare module 'hono' {
 const runtimeKey = getRuntimeKey()
 
 const app = new Hono<{ Bindings: Bindings }>()
+
+app.use(logger())
 
 app.use(
   '/*',
