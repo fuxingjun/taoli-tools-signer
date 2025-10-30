@@ -10,7 +10,7 @@ import { TTSError } from './error'
 import { hmacSha256 } from './hmac'
 import { EVM } from './platforms/evm'
 import { SVM } from './platforms/svm'
-import { type keySchema, keychainSchema, platformSchema } from './schema'
+import { keychainSchema, type keySchema, platformSchema } from './schema'
 
 type Bindings = {
   KEYCHAIN: string
@@ -33,6 +33,8 @@ app.use(
   '/*',
   cors({
     origin: ['http://localhost:5173', 'https://taoli.tools'],
+    allowHeaders: ['X-SIG'],
+    allowMethods: ['OPTIONS', 'GET', 'POST'],
   }),
 )
 
@@ -40,10 +42,7 @@ app.use('/*', async (c, next) => {
   try {
     return await next()
   } catch (err) {
-    return c.text(
-      `TTS: ${err instanceof TTSError ? err.message : 'Server error'}`,
-      500,
-    )
+    return c.text(`TTS: ${err instanceof TTSError ? err.message : 'Server error'}`, 500)
   }
 })
 
@@ -77,17 +76,12 @@ app.use('/:key/*', async (c, next) => {
     ?? realIP
     ?? ''
 
-  if (
-    ips.length > 0 &&
-    !ips.find((ip) => ip === remoteAddr)
-  ) {
+  if (ips.length > 0 && !ips.find((ip) => ip === remoteAddr)) {
     return c.text('TTS: Restricted IP', 403)
   }
 
   const body = await c.req.arrayBuffer()
-  if (
-    sig !== Buffer.from(await hmacSha256(key.secret, body)).toString('base64')
-  ) {
+  if (sig !== Buffer.from(await hmacSha256(key.secret, body)).toString('base64')) {
     return c.text('TTS: Wrong signature', 403)
   }
 
@@ -112,17 +106,12 @@ app.post('/:key/:platform', async (c) => {
   const key = c.get('key')
   const transaction = c.get('body')
   const platform = platformSchema.parse(c.req.param('platform'))
-  const { signTransaction } = await { EVM, SVM }[platform](
-    key.mnemonic,
-    key.passphrase,
-  )
+  const { signTransaction } = await { EVM, SVM }[platform](key.mnemonic, key.passphrase)
   const signedTransaction = await signTransaction(transaction)
-  return c.body(signedTransaction)
+  return c.body(new Uint8Array(signedTransaction))
 })
 
-async function getKeyChain(
-  c: Context<{ Bindings: Bindings }, '/', BlankInput>,
-) {
+async function getKeyChain(c: Context<{ Bindings: Bindings }, '/', BlankInput>) {
   const content =
     runtimeKey === 'workerd'
       ? c.env.KEYCHAIN

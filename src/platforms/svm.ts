@@ -5,6 +5,8 @@ import {
   getCompiledTransactionMessageCodec,
   getTransactionCodec,
   signTransaction,
+  type Transaction,
+  type TransactionWithLifetime,
 } from '@solana/kit'
 import slip10 from 'micro-key-producer/slip10.js'
 import { TTSError } from '../error'
@@ -17,16 +19,16 @@ const compiledTransactionMessageCodec = getCompiledTransactionMessageCodec()
 export const SVM: Platform<Address> = async (mnemonic, passphrase) => {
   const seed = await mnemonicToSeed(mnemonic, passphrase)
   const { privateKey } = slip10.fromMasterSeed(seed).derive(`m/44'/501'/0'/0'`)
-  const { address, keyPair } =
-    await createKeyPairSignerFromPrivateKeyBytes(privateKey)
+  const { address, keyPair } = await createKeyPairSignerFromPrivateKeyBytes(privateKey)
 
   return {
     address,
     async signTransaction(transaction) {
-      const tx = transactionCodec.decode(transaction)
+      const tx = transactionCodec.decode(transaction) as Transaction & TransactionWithLifetime
 
-      const { instructions, staticAccounts } =
-        compiledTransactionMessageCodec.decode(tx.messageBytes)
+      const { instructions, staticAccounts } = compiledTransactionMessageCodec.decode(
+        tx.messageBytes,
+      )
       for (const instruction of instructions) {
         const programId = staticAccounts[instruction.programAddressIndex]
         if (!programId || !allowlist.has(programId)) {
